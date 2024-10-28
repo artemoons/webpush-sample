@@ -4,15 +4,27 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 
+/**
+ * Subscription DTO.
+ */
 @Getter
 @Setter
 @AllArgsConstructor
 public class Subscription {
 
+    /**
+     * Endpoint.
+     */
     private final String endpoint;
 
+    /**
+     * Expiration time.
+     */
     private final Long expirationTime;
 
-    public final SubscriptionKeys keys;
+    /**
+     * Subscription keys.
+     */
+    private final SubscriptionKeys keys;
 
 }

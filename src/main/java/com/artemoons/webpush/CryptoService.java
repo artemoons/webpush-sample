@@ -34,21 +34,60 @@ import java.util.Base64;
 import java.util.List;
 
 
+/**
+ * Cryptographic message encoding.
+ */
 @Slf4j
 @Getter
 @Component
 public class CryptoService {
 
-    private final SecureRandom SECURE_RANDOM = new SecureRandom();
+    /**
+     * Allocation number.
+     */
+    public static final int ALLOCATION_NUMBER = 4;
+    /**
+     * Range number 16.
+     */
+    public static final int TO_RANGE_16 = 16;
+    /**
+     * Range number 12.
+     */
+    public static final int TO_RANGE_12 = 12;
+    /**
+     * Tag length.
+     */
+    public static final int TAG_LENGTH = 128;
+    /**
+     * Number 65.
+     */
+    public static final int NUMBER_65 = 65;
+    /**
+     * Secure random initializer.
+     */
+    private final SecureRandom secureRandom = new SecureRandom();
 
+    /**
+     * Key pair generator.
+     */
     private KeyPairGenerator keyPairGenerator;
 
+    /**
+     * Key factory.
+     */
     private KeyFactory keyFactory;
 
-    // https://stackoverflow.com/questions/30445997/loading-raw-64-byte-long-ecdsa-public-key-in-java
-    // X509 head without (byte)4
-    private static byte[] P256_HEAD = Base64.getDecoder().decode("MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgA");
+    /**
+     * X509 head without (byte) 4.
+     *
+     * @see <a href="https://stackoverflow.com/questions/30445997/loading-raw-64-byte-long-ecdsa-public-key-in-java">
+     * link</a>
+     */
+    private static final byte[] P256_HEAD = Base64.getDecoder().decode("MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgA");
 
+    /**
+     * Constructor.
+     */
     public CryptoService() {
         try {
             this.keyPairGenerator = KeyPairGenerator.getInstance("EC");
@@ -59,58 +98,17 @@ public class CryptoService {
         }
     }
 
-    public PublicKey convertX509ToECPublicKey(final byte[] encodedPublicKey) throws InvalidKeySpecException {
-        X509EncodedKeySpec publicX509 = new X509EncodedKeySpec(encodedPublicKey);
-        return keyFactory.generatePublic(publicX509);
-    }
-
-    public PrivateKey convertPKCS8ToECPrivateKey(final byte[] encodedPrivateKey) throws InvalidKeySpecException {
-        PKCS8EncodedKeySpec pkcs8spec = new PKCS8EncodedKeySpec(encodedPrivateKey);
-        return keyFactory.generatePrivate(pkcs8spec);
-    }
-
-    // String must start with (byte)4
-    public ECPublicKey fromUncompressedECPublicKey(final String encodedPublicKey) throws InvalidKeySpecException {
-
-        byte[] w = Base64.getUrlDecoder().decode(encodedPublicKey);
-        byte[] encodedKey = new byte[P256_HEAD.length + w.length];
-        System.arraycopy(P256_HEAD, 0, encodedKey, 0, P256_HEAD.length);
-        System.arraycopy(w, 0, encodedKey, P256_HEAD.length, w.length);
-
-        X509EncodedKeySpec encodedKeySpec = new X509EncodedKeySpec(encodedKey);
-        return (ECPublicKey) keyFactory.generatePublic(encodedKeySpec);
-    }
-
-    // Result starts with (byte)4
-    public static byte[] toUncompressedECPublicKey(final ECPublicKey publicKey) {
-        byte[] result = new byte[65];
-        byte[] encoded = publicKey.getEncoded();
-        System.arraycopy(encoded, P256_HEAD.length, result, 0, encoded.length - P256_HEAD.length);
-        return result;
-    }
-
-    byte[] concat(final byte[]... arrays) {
-        // Determine the length of the result array
-        int totalLength = 0;
-        for (byte[] array : arrays) {
-            totalLength += array.length;
-        }
-
-        // create the result array
-        byte[] result = new byte[totalLength];
-
-        // copy the source arrays into the result array
-        int currentIndex = 0;
-        for (byte[] array : arrays) {
-            System.arraycopy(array, 0, result, currentIndex, array.length);
-            currentIndex += array.length;
-        }
-
-        return result;
-    }
-
-    // https://tools.ietf.org/html/rfc8291
-    // 3.4. Encryption Summary
+    /**
+     * Encryption method.
+     *
+     * @param plainTextString   input string
+     * @param uaPublicKeyString public key
+     * @param authSecret        secret
+     * @param paddingSize       padding
+     * @return encrypted array of bytes
+     * @throws Exception exception
+     * @see <a href="https://tools.ietf.org/html/rfc8291">3.4. Encryption Summary</a>
+     */
     public byte[] encrypt(final String plainTextString,
                           final String uaPublicKeyString,
                           final String authSecret,
@@ -131,8 +129,8 @@ public class CryptoService {
 
             byte[] ecdhSecret = keyAgreement.generateSecret();
 
-            byte[] salt = new byte[16];
-            this.SECURE_RANDOM.nextBytes(salt);
+            byte[] salt = new byte[TO_RANGE_16];
+            this.secureRandom.nextBytes(salt);
 
             // ## Use HKDF to combine the ECDH and authentication secrets
             // # HKDF-Extract(salt=auth_secret, IKM=ecdh_secret)
@@ -167,7 +165,7 @@ public class CryptoService {
             hmacSHA256.update(cekInfo);
             hmacSHA256.update((byte) 1);
             byte[] cek = hmacSHA256.doFinal();
-            cek = Arrays.copyOfRange(cek, 0, 16);
+            cek = Arrays.copyOfRange(cek, 0, TO_RANGE_16);
 
             // # HKDF-Expand(PRK, nonce_info, L_nonce=12)
             // nonce_info = "Content-Encoding: nonce" || 0x00
@@ -177,11 +175,11 @@ public class CryptoService {
             hmacSHA256.update(nonceInfo);
             hmacSHA256.update((byte) 1);
             byte[] nonce = hmacSHA256.doFinal();
-            nonce = Arrays.copyOfRange(nonce, 0, 12);
+            nonce = Arrays.copyOfRange(nonce, 0, TO_RANGE_12);
 
             Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
             cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(cek, "AES"),
-                    new GCMParameterSpec(128, nonce));
+                    new GCMParameterSpec(TAG_LENGTH, nonce));
 
             List<byte[]> inputs = new ArrayList<>();
             byte[] plainTextBytes = plainTextString.getBytes(StandardCharsets.UTF_8);
@@ -195,19 +193,101 @@ public class CryptoService {
 
             byte[] encrypted = cipher.doFinal(concat(inputs.toArray(new byte[0][])));
 
-            ByteBuffer encryptedArrayLength = ByteBuffer.allocate(4);
+            ByteBuffer encryptedArrayLength = ByteBuffer.allocate(ALLOCATION_NUMBER);
             encryptedArrayLength.putInt(encrypted.length);
 
             byte[] header = concat(salt, encryptedArrayLength.array(),
                     new byte[]{(byte) uncompressedASPublicKey.length}, uncompressedASPublicKey);
 
             return concat(header, encrypted);
-        } catch (InvalidKeyException | NoSuchAlgorithmException | InvalidKeySpecException |
-                 InvalidAlgorithmParameterException | NoSuchPaddingException |
-                 IllegalBlockSizeException | BadPaddingException ex) {
+        } catch (InvalidKeyException | NoSuchAlgorithmException | InvalidKeySpecException
+                 | InvalidAlgorithmParameterException | NoSuchPaddingException
+                 | IllegalBlockSizeException | BadPaddingException ex) {
             log.error("Encryption error occurred");
             throw new Exception("Detailed message: ", ex);
         }
+    }
+
+    /**
+     * Converter to EC public key.
+     *
+     * @param encodedPublicKey encoded key
+     * @return public key
+     * @throws InvalidKeySpecException exception
+     */
+    public PublicKey convertX509ToECPublicKey(final byte[] encodedPublicKey) throws InvalidKeySpecException {
+        X509EncodedKeySpec publicX509 = new X509EncodedKeySpec(encodedPublicKey);
+        return keyFactory.generatePublic(publicX509);
+    }
+
+    /**
+     * Converter to EC private key.
+     *
+     * @param encodedPrivateKey encoded key
+     * @return private key
+     * @throws InvalidKeySpecException exception
+     */
+    public PrivateKey convertPKCS8ToECPrivateKey(final byte[] encodedPrivateKey) throws InvalidKeySpecException {
+        PKCS8EncodedKeySpec pkcs8spec = new PKCS8EncodedKeySpec(encodedPrivateKey);
+        return keyFactory.generatePrivate(pkcs8spec);
+    }
+
+    /**
+     * Converter to elliptic curve (EC) public key.
+     *
+     * @param encodedPublicKey encoded public key
+     * @return elliptic curve public key
+     * @throws InvalidKeySpecException exception
+     */
+    // String must start with (byte)4
+    public ECPublicKey fromUncompressedECPublicKey(final String encodedPublicKey) throws InvalidKeySpecException {
+
+        byte[] w = Base64.getUrlDecoder().decode(encodedPublicKey);
+        byte[] encodedKey = new byte[P256_HEAD.length + w.length];
+        System.arraycopy(P256_HEAD, 0, encodedKey, 0, P256_HEAD.length);
+        System.arraycopy(w, 0, encodedKey, P256_HEAD.length, w.length);
+
+        X509EncodedKeySpec encodedKeySpec = new X509EncodedKeySpec(encodedKey);
+        return (ECPublicKey) keyFactory.generatePublic(encodedKeySpec);
+    }
+
+    /**
+     * Converter to uncompressed elliptic curve (EC) public key. Result starts with (byte)4.
+     *
+     * @param publicKey public key
+     * @return byte array
+     */
+    public static byte[] toUncompressedECPublicKey(final ECPublicKey publicKey) {
+        byte[] result = new byte[NUMBER_65];
+        byte[] encoded = publicKey.getEncoded();
+        System.arraycopy(encoded, P256_HEAD.length, result, 0, encoded.length - P256_HEAD.length);
+        return result;
+    }
+
+    /**
+     * Auxiliary concatenation method.
+     *
+     * @param arrays arrays of bytes
+     * @return concatenated array of bytes
+     */
+    byte[] concat(final byte[]... arrays) {
+        // Determine the length of the result array
+        int totalLength = 0;
+        for (byte[] array : arrays) {
+            totalLength += array.length;
+        }
+
+        // create the result array
+        byte[] result = new byte[totalLength];
+
+        // copy the source arrays into the result array
+        int currentIndex = 0;
+        for (byte[] array : arrays) {
+            System.arraycopy(array, 0, result, currentIndex, array.length);
+            currentIndex += array.length;
+        }
+
+        return result;
     }
 
 }

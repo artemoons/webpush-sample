@@ -17,23 +17,53 @@ import java.security.spec.InvalidKeySpecException;
 import java.util.Base64;
 
 
+/**
+ * Class for generating and obtaining server keys.
+ */
 @Slf4j
 @Getter
 @Component
-public class ServerKeys {
+public class ServerKeysService {
+    /**
+     * Application configuration.
+     */
     private final Configuration configuration;
+    /**
+     * Cryptographical service.
+     */
     private final CryptoService cryptoService;
+    /**
+     * Elliptic curve (EC) public key.
+     */
     private ECPublicKey publicKey;
+    /**
+     * elliptic curve (EC) private key.
+     */
     private ECPrivateKey privateKey;
+    /**
+     * Uncompressed public key.
+     */
     private byte[] publicKeyUncompressed;
+    /**
+     * Plaintext public key.
+     */
     private String publicKeyBase64;
 
+    /**
+     * Constructor.
+     *
+     * @param config    application configuration
+     * @param cryptoSvc cryphographical service
+     */
     @Autowired
-    public ServerKeys(final Configuration configuration, final CryptoService cryptoService) {
-        this.configuration = configuration;
-        this.cryptoService = cryptoService;
+    public ServerKeysService(final Configuration config, final CryptoService cryptoSvc) {
+        this.configuration = config;
+        this.cryptoService = cryptoSvc;
     }
 
+    /**
+     * Method for initialization server keys.
+     */
     @PostConstruct
     private void initializeKeys() {
         Path serverPublicKeyFile = Paths.get(configuration.getPublicKeyPath());
