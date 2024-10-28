@@ -1,0 +1,4 @@
+encryption:
+  server:
+    private-key-path: key.public
+    public-key-path: key.private
