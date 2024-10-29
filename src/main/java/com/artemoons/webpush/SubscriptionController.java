@@ -49,6 +49,7 @@ public class SubscriptionController {
      */
     @GetMapping(path = "/publicSigningKey", produces = "application/octet-stream")
     public byte[] publicSigningKey() {
+        log.info("Requested public signing key");
         return serverKeysService.getPublicKeyUncompressed();
     }
 
@@ -60,6 +61,7 @@ public class SubscriptionController {
     @PostMapping("/subscribe")
     @ResponseStatus(HttpStatus.CREATED)
     public void subscribe(final @RequestBody Subscription subscription) {
+        log.info("Requested subscription");
         messageService.getSubscriberList().put(subscription.getEndpoint(), subscription);
     }
 
@@ -70,6 +72,7 @@ public class SubscriptionController {
      */
     @PostMapping("/unsubscribe")
     public void unsubscribe(final @RequestBody SubscriptionEndpoint subscription) {
+        log.info("Requested unsubscription");
         messageService.getSubscriberList().remove(subscription.getEndpoint());
     }
 
@@ -81,6 +84,7 @@ public class SubscriptionController {
      */
     @PostMapping("/isSubscribed")
     public boolean isSubscribed(final @RequestBody SubscriptionEndpoint subscription) {
+        log.info("Requested subscription status");
         return messageService.getSubscriberList().containsKey(subscription.getEndpoint());
     }
 
@@ -92,6 +96,7 @@ public class SubscriptionController {
      */
     @PostMapping("/send")
     public ResponseEntity<String> sendMessage(final @RequestBody PushMessage message) {
+        log.info("Send message executed");
         messageService.sendMessage(message);
         return ResponseEntity.ok("Message sent");
     }
