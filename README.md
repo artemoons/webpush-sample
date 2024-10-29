@@ -13,10 +13,10 @@ I tried to simplify this app as much as possible, so it's very easy to understan
 After launch push messages can be sent:
 * via POST request to controller -- in this case "title" and "message" can be customized;
 
-  ![sample-message-1](D:\projects\my\webpush-sample\webpush\readme_sources\sample-message.png)
+  ![sample-message-1](readme_sources\sample-message.png)
 * via web page -- in this case "title" is predefined, but "message" is customizeable too.
 
-  ![sample-message-2](D:\projects\my\webpush-sample\webpush\readme_sources\sample-message-2.png)
+  ![sample-message-2](readme_sources\sample-message-2.png)
 
 
 ## Getting Started
